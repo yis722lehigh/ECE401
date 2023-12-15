@@ -1,0 +1,1076 @@
+
+module test2(reset, clock, 
+C0,RW,ALU_op,alu_m,MRW,WB,inst_out,status_flag,PCsrc,imm_sel,final_out);
+
+ 
+
+input reset, clock, C0;
+
+//input branch_or_not; //will go to PC mux
+
+input alu_m; //will go to ALU mux
+
+input RW;//will go to reg
+
+input [3:0] ALU_op; //will go to ALU make it 00011 for add
+
+input MRW;//will go to memory //make it 1 always
+
+input WB;//WB mux selector
+
+input PCsrc;
+
+input [1:0]imm_sel;
+
+ 
+
+//input [31:0] b_offset;
+
+ 
+
+ 
+
+output [31:0]inst_out;// coming fromROM
+
+output [3:0] status_flag;
+
+output [31:0]final_out;// coming fromROM
+
+//output [31:0] imm_o;
+
+ 
+
+//wire [31:0] mux_4_pc,mux_offet_pc;
+
+ 
+
+wire [31:0]  sig_imm_out;
+
+ 
+
+wire [4:0] sig_rd;
+
+wire [4:0] sig_rs1;
+
+wire [4:0] sig_rs2;
+
+//wire [11:0] sig_imm;
+
+wire [31:0] sig_inst;
+
+wire [31:0] sig_B_imm,sig_mux_DM,sig_A, sig_B;
+
+ 
+
+wire [31:0] sig_alu_out;
+
+ 
+
+wire [31:0] sig_mem_out;
+
+ 
+
+wire [31:0] PC_O,PC_O4,PC_Off,PC_m;
+
+             
+
+wire [31:0] R_O;
+
+ 
+
+/*
+
+module PC_ROM_ID(reset, clock, RD,RS1,RS2,IMM, ins_out);
+
+module ROM(out,clock, address);
+
+module Registerfile32x32(A, B, SA, SB, D, DA, W, reset, clock);
+
+module imm_generator(inst, imm_sel,imm_out1,imm_out2,imm_out3);module RAM256x32(clk, address, data_in, rw, data_out);
+
+module ALU(A, B, FS, C0, F, status);
+
+module Mux_2to1(F, I0, I1, S);
+
+module IR(in, rd,rs1,rs2,inst );
+
+ 
+
+ 
+
+*/
+
+ 
+
+PC UUT_PC(reset, clock, PC_m, PC_O);
+
+             
+
+Adder4 UUT_Adder4(PC_O, PC_O4);
+
+Adder_off UUT_Adderoff(PC_O,sig_imm_out, PC_Off,C0, Cout);
+
+//Adder_off UUT_Adderoff(PC_O,sig_imm_out, PC_Off);
+
+ 
+
+ROM UUT_ROM(R_O, PC_O);
+
+IR UUT_IR(R_O, sig_rd,sig_rs1,sig_rs2,sig_inst);
+
+             
+
+ 
+
+//PC_ROM_ID uut_pc(reset, clock, sig_rd,sig_rs1,sig_rs2,sig_imm,inst);
+
+ 
+
+Registerfile32x32 uut0 (sig_A, sig_B, sig_rs1,sig_rs2, sig_mux_DM, sig_rd, RW, reset, clock); //sig_mux_DM-ouput data (write)
+
+ 
+
+imm_generator uut1_imm (sig_inst,imm_sel,sig_imm_out);
+
+ 
+
+ALU uut3 (sig_A, sig_B_imm, ALU_op, C0, sig_alu_out, status_flag);
+
+ 
+
+RAM256x32 uut2 (clk, sig_alu_out, sig_B, MRW, sig_mem_out);
+
+ 
+
+ 
+
+Mux_2to1 uut_mux1 (sig_B_imm, sig_imm_out, sig_B, alu_m);
+
+Mux_2to1 uut_mux2 (sig_mux_DM, sig_alu_out,sig_mem_out, WB);
+
+Mux_2to1 uut_mux3 (PC_m, PC_Off,PC_O4,PCsrc);
+
+ 
+
+ 
+
+//assign sig_B_imm = alu_m?sig_B:sig_imm_out;
+
+ 
+
+//assign sig_mux_DM = WB?sig_mem_out:sig_alu_out;
+
+ 
+
+ 
+
+ 
+
+assign inst_out = sig_inst;
+
+assign final_out = sig_mux_DM;
+
+             
+
+endmodule
+//---------------------------------------------------------------------------
+module Adder4(PC_in, PC_out4);
+	
+	//input reset, clock;
+	input [31:0] PC_in;
+	output [31:0] PC_out4;
+	
+	
+	
+		 
+		assign PC_out4 = PC_in+32'd4;
+		
+	
+	
+endmodule
+//-----------------------
+module IR(in, rd,rs1,rs2,inst );
+	
+	output  [4:0] rd;
+	output  [4:0] rs1;
+	output  [4:0] rs2;
+	//output [11:0] imm;
+	output [31:0] inst;
+	
+	
+	input [31:0] in; 
+	
+	
+	assign rd =  in[11:7];
+	assign rs1 =  in[19:15];
+	assign rs2 =  in[24:20];
+	//assign imm = in[31:20];
+	assign inst [31:0] = in [31:0];
+	
+		
+		
+endmodule
+//-------------------------------------------------------------
+module PC(reset, clock, PC_in, PC_out);
+	
+	input reset, clock;
+	input [31:0] PC_in;
+	output reg [31:0] PC_out;
+	
+	
+	
+	always @(posedge clock) begin
+		if (reset)
+		
+		PC_out = 32'd0;
+		
+		else 
+		 PC_out = PC_in;
+		 
+	end
+	
+	
+endmodule
+//----------------------------------------------------------------------
+module ROM(out,address);
+	output reg [31:0] out;
+	input [31:0] address; 
+	//input clock;
+	always @(address) begin
+		case (address)
+		
+		   /*32'd00: out = 32'h00000000;
+			32'd04: out = 32'h00400513;//addi x10,x0,4   0000 0000 0100 0101 0000 0101 0001 0011
+			32'd08: out = 32'h00100713; //addi x14,x0,1  0000 0000 0001 0000 0000 0111 0001 0011 
+			
+			32'd12: out = 32'h00e507b3; // add x15,x10,x14 0000 000 01110 01010 000 01111 0110011 // 0000 0000 1110 0101 0000 0111 1011 0011 //0111 1010
+			32'd16: out = 32'h00178813; // addi x16,x15,1 0000 0000 0001 01111 000 10000 0010011 // 0000 0000 0001 0111 1000 1000 0001 0011*/
+			
+			
+			32'd00: out = 32'h00000000;
+			/*32'd04: out = 32'b00400513;//addi x10,x0,4   0000 0000 0100 0101 0000 0101 0001 0011
+			32'd08: out = 32'b00100713; //addi x14,x0,1  0000 0000 0001 0000 0000 0111 0001 0011 
+			
+			32'd12: out = 32'h00e507b3; // add x15,x10,x14 0000 000 01110 01010 000 01111 0110011 // 0000 0000 1110 0101 0000 0111 1011 0011 //0111 1010
+			32'd16: out = 32'h00178813; // addi x16,x15,1 0000 0000 0001 01111 000 10000 0010011 // 0000 0000 0001 0111 1000 1000 0001 0011
+			
+			*/
+	      32'd04: out = 32'b00000000010000000000010100010011;
+         32'd08: out = 32'b00000000000100000000011100010011;
+         32'd12: out = 32'b00000000111001010000011110110011;
+         32'd16: out = 32'b00000000111101010010001000010011;
+         32'd20: out = 32'b00000000010001010010100000000011;
+         32'd24: out = 32'b00000000111110000000001001000111;
+         32'd28: out = 32'b00000000111001010100011110110011;
+         32'd32: out = 32'b01000000111001010000011000110011;
+
+			
+			
+			
+		
+		
+			/*32'd00: out = 32'h00450013;//addi x13,x0,4   0000 0000 0100 0101 0000 0000 0001 0011
+			32'd04: out = 32'h00100713; //addi x14,x0,1  0000 0000 0001 0000 0000 0111 0001 0011 
+			32'd08: out = 32'h00d707b3; // add x15,x14,x13 0000 0000 1101 0111 0000 0111 1011 0011 
+			*/
+			
+			
+			/*8'd00: out = 32'h00450693;//addi a3,a0,4   
+			8'd04: out = 32'h00100713; //addi a4,x0,1 
+			8'd08: out = 32'h00b76463; // bltu a4,a1,10 --Outer Loop:
+			8'd12: out = 32'h00008067; //addi x0,x1,0  --Exit Outer Loop:
+			8'd16: out = 32'h0006a803; //a6,0(a3) --Continue Outer Loop:
+			8'd20: out = 32'h00068613; //a2,a3,0
+			8'd24: out = 32'h00070793; //a5,a4,0
+			8'd28: out = 32'hffc62883; //a7,-4(a2) --Inner Loop:
+			8'd32: out = 32'h01185a63; //a6,a7,34
+			8'd36: out = 32'h01162023; //a7,0(a2)
+			8'd40: out = 32'hfff78793; //a5,a5,-1
+			8'd44: out = 32'hffc60613; //a2,a2,-4
+			8'd48: out = 32'hfe0796e3; //a5,x10,1c
+			8'd52: out = 32'h00279793; //a5,a5,0x2 --Exit inner loop
+			8'd56: out = 32'h00f507b3; //a5,a0,a5
+			8'd60: out = 32'h0107a023; //a6,0(a5)
+			8'd64: out = 32'h00170713; //a4,a4,1
+			8'd68: out = 32'h00468693; //a3,a3,4
+			8'd72: out = 32'hfc1ff06f; //x0,8*/
+			
+			
+			
+			default:  out = 32'h00000000; 
+		endcase
+	end
+endmodule
+//--------------------------------------------------------------
+//`ifndef DECODER5TO32_V
+//`define DECODER5TO32_V
+//`include "Decoder5to32.v"
+//`endif
+
+//`ifndef REGISTERNBIT_V
+//`define REGISTERNBIT_V
+//`include "RegisterNbit.v"
+//`endif
+
+//`ifndef MUX32TO1NBIT_V
+//`define MUX32TO1NBIT_V
+//`include "Mux32to1Nbit.v"
+//`endif
+
+module Registerfile32x32(
+    output [31:0] A,  // A bus
+    output [31:0] B,  // B bus
+    input [4:0] SA,   // Select A - A Address
+    input [4:0] SB,   // Select B - B Address
+    input [31:0] D,   // Data input
+    input [4:0] DA,   // Data destination address
+    input W,          // write enable
+    input reset,      // positive logic asynchronous reset
+    input clock
+);
+
+    // create 32 load enable wires
+    wire [31:0] load_enable;
+    
+    // instantiate a 5-to-32 line decoder and connect to the load enable wires
+    Decoder5to32 decoder(load_enable, DA, W);
+    
+    // create 32-bit wires for each register
+    wire [31:0] R[0:31];
+    
+    // instantiate 32 registers
+    genvar i;
+    generate
+        for (i = 0; i < 32; i = i + 1) begin : reg_gen
+            if (i == 0) begin
+                // the first register, address 0, is always 0 for the RISC-V architecture
+                assign R[i] = 32'b0;
+            end else begin
+                RegisterNbit #(32) reg_i(R[i], D, load_enable[i], reset, clock);
+            end
+        end
+    endgenerate
+    
+    // instantiate a 32:1 mux for selecting a register for the A output
+    Mux32to1Nbit #(32) muxA(A, SA, R[0], R[1], R[2], R[3], R[4], R[5], R[6], R[7],
+                                 R[8], R[9], R[10], R[11], R[12], R[13], R[14], R[15],
+                                 R[16], R[17], R[18], R[19], R[20], R[21], R[22], R[23],
+                                 R[24], R[25], R[26], R[27], R[28], R[29], R[30], R[31]);
+    
+    // instantiate a 32:1 mux for selecting a register for the B output
+    Mux32to1Nbit #(32) muxB(B, SB, R[0], R[1], R[2], R[3], R[4], R[5], R[6], R[7],
+                                 R[8], R[9], R[10], R[11], R[12], R[13], R[14], R[15],
+                                 R[16], R[17], R[18], R[19], R[20], R[21], R[22], R[23],
+                                 R[24], R[25], R[26], R[27], R[28], R[29], R[30], R[31]);
+endmodule
+//------------------------------------------------------
+
+module Decoder5to32(m, S, en);
+	input [4:0]S; // select
+	input en; // enable (positive logic)
+	output [31:0]m; // 32 minterms
+	
+	assign m[0] = ~S[4]&~S[3]&~S[2]&~S[1]&~S[0]&en;
+	assign m[1] = ~S[4]&~S[3]&~S[2]&~S[1]& S[0]&en;
+	assign m[2] = ~S[4]&~S[3]&~S[2]& S[1]&~S[0]&en;
+	assign m[3] = ~S[4]&~S[3]&~S[2]& S[1]& S[0]&en;
+	assign m[4] = ~S[4]&~S[3]& S[2]&~S[1]&~S[0]&en;
+	assign m[5] = ~S[4]&~S[3]& S[2]&~S[1]& S[0]&en;
+	assign m[6] = ~S[4]&~S[3]& S[2]& S[1]&~S[0]&en;
+	assign m[7] = ~S[4]&~S[3]& S[2]& S[1]& S[0]&en;
+	assign m[8] = ~S[4]& S[3]&~S[2]&~S[1]&~S[0]&en;
+	assign m[9] = ~S[4]& S[3]&~S[2]&~S[1]& S[0]&en;
+	assign m[10]= ~S[4]& S[3]&~S[2]& S[1]&~S[0]&en;
+	assign m[11]= ~S[4]& S[3]&~S[2]& S[1]& S[0]&en;
+	assign m[12]= ~S[4]& S[3]& S[2]&~S[1]&~S[0]&en;
+	assign m[13]= ~S[4]& S[3]& S[2]&~S[1]& S[0]&en;
+	assign m[14]= ~S[4]& S[3]& S[2]& S[1]&~S[0]&en;
+	assign m[15]= ~S[4]& S[3]& S[2]& S[1]& S[0]&en;	
+	assign m[16]=  S[4]&~S[3]&~S[2]&~S[1]&~S[0]&en;
+	assign m[17]=  S[4]&~S[3]&~S[2]&~S[1]& S[0]&en;
+	assign m[18]=  S[4]&~S[3]&~S[2]& S[1]&~S[0]&en;
+	assign m[19]=  S[4]&~S[3]&~S[2]& S[1]& S[0]&en;
+	assign m[20]=  S[4]&~S[3]& S[2]&~S[1]&~S[0]&en;
+	assign m[21]=  S[4]&~S[3]& S[2]&~S[1]& S[0]&en;
+	assign m[22]=  S[4]&~S[3]& S[2]& S[1]&~S[0]&en;
+	assign m[23]=  S[4]&~S[3]& S[2]& S[1]& S[0]&en;
+	assign m[24]=  S[4]& S[3]&~S[2]&~S[1]&~S[0]&en;
+	assign m[25]=  S[4]& S[3]&~S[2]&~S[1]& S[0]&en;
+	assign m[26]=  S[4]& S[3]&~S[2]& S[1]&~S[0]&en;
+	assign m[27]=  S[4]& S[3]&~S[2]& S[1]& S[0]&en;
+	assign m[28]=  S[4]& S[3]& S[2]&~S[1]&~S[0]&en;
+	assign m[29]=  S[4]& S[3]& S[2]&~S[1]& S[0]&en;
+	assign m[30]=  S[4]& S[3]& S[2]& S[1]&~S[0]&en;
+	assign m[31]=  S[4]& S[3]& S[2]& S[1]& S[0]&en;
+endmodule
+//-------------------
+module Mux32to1Nbit(F, S, I00, I01, I02, I03, I04, I05, I06, I07, I08, I09,
+								  I10, I11, I12, I13, I14, I15, I16, I17, I18, I19,
+								  I20, I21, I22, I23, I24, I25, I26, I27, I28, I29,
+								  I30, I31);
+
+	parameter N = 32;
+	
+	
+	output reg [N-1:0]F; // output
+	input [4:0]S; // select
+	input [N-1:0]I00, I01, I02, I03, I04, I05, I06, I07, I08, I09;
+	input [N-1:0]I10, I11, I12, I13, I14, I15, I16, I17, I18, I19;
+	input [N-1:0]I20, I21, I22, I23, I24, I25, I26, I27, I28, I29;
+	input [N-1:0]I30, I31;
+	
+	always @(I00, I01, I02, I03, I04, I05, I06, I07, I08, I09, I10, I11, I12, I13, I14, I15, I16, I17, I18, I19, I20, I21, I22, I23, I24, I25, I26, I27, I28, I29, I30, I31, S) begin
+		case(S)
+			5'h00: F <= I00;
+			5'h01: F <= I01;
+			5'h02: F <= I02;
+			5'h03: F <= I03;
+			5'h04: F <= I04;
+			5'h05: F <= I05;
+			5'h06: F <= I06;
+			5'h07: F <= I07;
+			5'h08: F <= I08;
+			5'h09: F <= I09;
+			5'h0A: F <= I10;
+			5'h0B: F <= I11;
+			5'h0C: F <= I12;
+			5'h0D: F <= I13;
+			5'h0E: F <= I14;
+			5'h0F: F <= I15;
+			5'h10: F <= I16;
+			5'h11: F <= I17;
+			5'h12: F <= I18;
+			5'h13: F <= I19;
+			5'h14: F <= I20;
+			5'h15: F <= I21;
+			5'h16: F <= I22;
+			5'h17: F <= I23;
+			5'h18: F <= I24;
+			5'h19: F <= I25;
+			5'h1A: F <= I26;
+			5'h1B: F <= I27;
+			5'h1C: F <= I28;
+			5'h1D: F <= I29;
+			5'h1E: F <= I30;
+			5'h1F: F <= I31;
+		endcase
+	end
+endmodule
+//--------------------------------
+module RegisterNbit(Q, D, L, R, clock);
+	parameter N = 32; // number of bits
+	output reg [N-1:0]Q; // registered output
+	input [N-1:0]D; // data input
+	input L; // load enable
+	input R; // positive logic asynchronous reset
+	input clock; // positive edge clock
+	
+	always @(posedge clock or posedge R) begin
+		if(R)
+			Q <= 0;
+		else if(L)
+			Q <= D;
+		else
+			Q <= Q;
+	end
+endmodule
+//-------------------------
+//`ifndef MUX_4TO2_V
+//`define MUX_4TO2_V	
+//`include "Mux_4to2.v"
+//`endif
+module imm_generator(inst, imm_sel,imm_out);
+
+input [31:0] inst;
+input [1:0] imm_sel;
+output [31:0] imm_out;
+
+wire [31:0] imm_out1,imm_out2,imm_out3,imm_out4; //imm_out1-regular imm (00), imm_out2-stype imm(01),imm_out3-btype imm(10)
+
+assign imm_out1[31:12] = {20{inst[31]}};
+assign imm_out1[11:0] = inst[31:20];
+
+assign imm_out2[31:12] = {20{inst[31]}}; //stype
+assign imm_out2[11:0] = {inst[31:25],inst[11:7]};
+
+assign imm_out3[31:12] = {20{inst[30]}}; // b type
+assign imm_out3[0] = 1'b0;
+assign imm_out3[11:1] = {inst[7],inst[30:25],inst[11:8]};
+
+assign imm_out4 = 32'b0;
+
+Mux_4to2 uut_mux(imm_out,imm_out4,imm_out1,imm_out2,imm_out3,imm_sel);
+
+endmodule
+
+
+//----------------------------
+module Mux_4to2(
+    output reg [31:0] out, // Output of the MUX should also be reg since it's driven by always block
+    input [31:0] in1,      // Input 1
+    input [31:0] in2,      // Input 2
+    input [31:0] in3,      // Input 3
+    input [31:0] in4,      // Input 4
+    input [1:0] sel        // 2-bit select input
+);
+
+    // MUX logic using a case statement inside an always block
+    always @(*) begin
+        case (sel)
+            2'b00: out = in1; // When sel is 00
+            2'b01: out = in2; // When sel is 01
+            2'b10: out = in3; // When sel is 10
+            2'b11: out = in4; // When sel is 11
+            default: out = 32'bx; // Catch-all for undefined sel values
+        endcase
+    end
+
+endmodule
+//---------------------
+//`ifndef DECODER_2X1_V
+//`define DECODER_2X1_V
+//`include "decoder_2x1.v"
+//`endif
+
+//`ifndef RAM64X8_V
+//`define RAM64X8_V
+//`include "RAM64x8.v"
+//`endif
+
+module RAM256x32(clk, address, data_in, rw, data_out);
+
+//parameter RAMAddress = 8'b00000000;
+
+//rw=1, write, rw=0, read
+	
+	input [7:0] address; //8b address
+	input clk; //1b clock
+	input [31:0] data_in; //64b input
+	input rw; //1b write enable
+	
+	output  [31:0] data_out;
+	wire [31:0] sig_data_out1,sig_data_out2,sig_data_out3,sig_data_out4;
+	
+	
+	//reg [7:0]mem[0:255]; //reserve memory (8 bits and 256 locations)
+
+
+
+
+//wire [31:0] sig_data_out;
+
+wire [3:0] cs_sel;
+
+/*wire [1:0] s2, s3;
+
+assign s2[0]=address[6];
+assign s2[1]=address[7];
+
+assign s3[0]=address[6];
+assign s3[1]=address[7];
+*/
+
+decoder_2x1 d0 (cs_sel, address[7:6]);
+
+//1st row block
+
+RAM64x8 u00 (clk, address[5:0], data_in[7:0], cs_sel[0], rw, sig_data_out1[7:0]);
+
+RAM64x8 u01 (clk, address[5:0], data_in[15:8], cs_sel[0], rw, sig_data_out1[15:8]);
+
+RAM64x8 u02 (clk, address[5:0], data_in[23:16], cs_sel[0], rw, sig_data_out1[23:16]);
+
+RAM64x8 u03 (clk, address[5:0], data_in[31:24], cs_sel[0], rw, sig_data_out1[31:24]);
+
+//2nd row block
+
+RAM64x8 u10 (clk, address[5:0], data_in[7:0], cs_sel[1], rw, sig_data_out2[7:0]);
+
+RAM64x8 u11 (clk, address[5:0], data_in[15:8], cs_sel[1], rw, sig_data_out2[15:8]);
+
+RAM64x8 u12 (clk, address[5:0], data_in[23:16], cs_sel[1], rw, sig_data_out2[23:16]);
+
+RAM64x8 u13 (clk, address[5:0], data_in[31:24], cs_sel[1], rw, sig_data_out2[31:24]);
+
+//3rd row block
+
+RAM64x8 u20 (clk, address[5:0], data_in[7:0], cs_sel[2], rw, sig_data_out3[7:0]);
+
+RAM64x8 u21 (clk, address[5:0], data_in[15:8], cs_sel[2], rw, sig_data_out3[15:8]);
+
+RAM64x8 u22 (clk, address[5:0], data_in[23:16], cs_sel[2], rw, sig_data_out3[23:16]);
+
+RAM64x8 u23 (clk, address[5:0], data_in[31:24], cs_sel[2], rw, sig_data_out3[31:24]);
+
+//4th row block
+
+RAM64x8 u30 (clk, address[5:0], data_in[7:0], cs_sel[3], rw, sig_data_out4[7:0]);
+
+RAM64x8 u31 (clk, address[5:0], data_in[15:8], cs_sel[3], rw, sig_data_out4[15:8]);
+
+RAM64x8 u32 (clk, address[5:0], data_in[23:16], cs_sel[3], rw, sig_data_out4[23:16]);
+
+RAM64x8 u33 (clk, address[5:0], data_in[31:24], cs_sel[3], rw, sig_data_out4[31:24]);
+
+//assign [31:0]data_out = [31:0]sig_data_out;
+
+//Mux4to1Nbit mux0 (data_out, s3, sig_data_out1, sig_data_out2, sig_data_out3, sig_data_out4);
+
+
+assign data_out = cs_sel[0]? sig_data_out1 : 'bz;
+assign data_out = cs_sel[1]? sig_data_out2 : 'bz;
+assign data_out = cs_sel[2]? sig_data_out3 : 'bz;
+assign data_out = cs_sel[3]? sig_data_out4 : 'bz;
+
+
+endmodule
+//--------------------------
+module decoder_2x1(m, S);
+	input [1:0]S; // select
+	//input en; // enable (positive logic)
+	output reg [3:0]m; // 32 minterms
+
+always @(S)
+    case (S)   //case statement. Check all the 8 combinations.
+        2'b00 : m = 4'b0001;
+        2'b01 : m = 4'b0010;
+		  2'b10 : m = 4'b0100;
+        2'b11 : m = 4'b1000;
+        //To make sure that latches are not created create a default value for output.
+        default : m = 4'b0000; 
+endcase
+endmodule
+//---------------------------
+
+	module RAM64x8(clock,address,in,chip_select, write_enable, out);
+	// when chip_select is on read otherwise out need to be 0 for the 32-bit design
+	// to work when reading less than 32-bits
+	
+	
+	parameter ADDR_WIDTH = 6;
+	parameter RAM_DEPTH = 64;//1 << ADDR_WIDTH; // RAM_DEPTH is in bytes
+	
+	input clock, chip_select, write_enable;
+	
+	input [ADDR_WIDTH-1:0] address;
+	input [7:0] in;
+	output reg [7:0] out;
+	
+	// register to store the output of memory during read
+	reg [7:0] mem_out;
+	// describe memory as a 8-bit array of registers
+	reg [7:0] mem [0:RAM_DEPTH-1];
+	
+	
+	// write description
+	always @(posedge clock) begin
+		if(chip_select && write_enable)
+			mem[address] = in;
+	end
+	
+	// read description
+	always @(posedge clock) begin
+	if(chip_select)
+		mem_out = mem[address];
+		//out =  mem_out;
+		out <= chip_select ? mem_out : 8'b0;
+	end
+	
+	//assign out = chip_select ? mem_out : 8'b0;
+	
+endmodule
+
+
+/* 
+module RAM64x8 (addy, WR, clk, CS, Di,Do);
+	
+	input [5:0] addy;
+	input WR, clk, CS;
+	input [7:0] Di;
+	output reg[7:0]Do;
+
+	
+	reg [7:0] mem_array[5:0];
+	reg [7:0] mem_out;
+	
+	always@(posedge clk)begin
+		if (CS && WR)
+			mem_array[addy]=Di;
+		end 
+	always@(posedge clk) begin 
+		mem_out=mem_array[addy];
+		Do <=CS ? mem_out : 8'b0;
+	end 
+	
+	
+endmodule */
+//-------------------------------
+module ALU(A, B, FS, C0, F, status);
+	input [31:0] A, B;
+	input [3:0]FS;
+	input C0;
+	output [31:0]F;
+	output [3:0]status;
+	
+	wire Z, N, C, V;
+	assign status = {V, C, N, Z};
+	
+	wire [31:0] A_Signal, B_Signal;
+	// A Mux
+	assign A_Signal = FS[0] ? ~A : A;
+	// B Mux
+	assign B_Signal = FS[0] ? ~B : B;
+
+	wire [31:0] add_output, and_output, or_output, xor_output, shift_left, shift_right;
+	wire adder_carry_out;
+	Adder adder_inst (add_output, adder_carry_out, A_Signal, B_Signal, C0);
+	Shifter shift_inst (shift_left, shift_right, A, B[5:0]);
+
+	assign and_output = A_Signal && B_Signal;
+	assign or_output = A_Signal || B_Signal;
+	assign xor_output = A_Signal ^ B_Signal;
+	
+	Mux8to1Nbit main_mux (
+		F, 
+		FS[3:1], 
+		and_output, 
+		or_output, 
+		add_output, 
+		xor_output, 
+		shift_left, 
+		shift_right, 
+		32'b0, 
+		32'b0
+	);
+
+	assign N = F[31];
+	assign Z = (F == 32'b0);
+	assign C = adder_carry_out;
+	assign V = (A[31] == B[31]) && (F[31] != A[31]);
+endmodule
+
+module Shifter(left, right, A, shift_amount);
+	input [31:0] A;
+	input [5:0] shift_amount;
+	output [31:0] left, right;
+	
+	assign left = A << shift_amount;
+	assign right = A >> shift_amount;
+endmodule
+
+module Adder(S, Cout, A, B, Cin);
+	input [31:0] A, B;
+	input Cin;
+	output [31:0] S;
+	output Cout;
+	
+	wire [32:0]carry;
+	assign carry[0] = Cin;
+	assign Cout = carry[32];
+	// use generate block to instantiate 32 full adders
+	genvar i;
+	generate
+	for (i = 0; i < 32; i = i + 1) begin: full_adders
+		FullAdder adder_inst (
+			.S(S[i]), 
+			.Cout(carry[i+1]), 
+			.A(A[i]), 
+			.B(B[i]), 
+			.Cin(carry[i])
+		);	
+	end
+	endgenerate
+endmodule
+
+module FullAdder(S, Cout, A, B, Cin);
+	input A, B, Cin;
+	output S, Cout;
+	
+	assign S = A ^ B ^ Cin;
+	assign Cout = (A & B) | (A & Cin) | (B & Cin); 
+endmodule
+//------------------------------
+/*module Mux8to1Nbit(F, S, I0, I1, I2, I3, I4, I5, I6, I7);
+	parameter N = 32;
+	input [N-1:0]I0, I1, I2, I3, I4, I5, I6, I7;
+	input [2:0]S;
+	output [N-1:0]F;
+	
+	assign F = S[2] ? (S[1] ? (S[0] ? I7 : I6) : (S[0] ? I5 : I4)) : (S[1] ? (S[0] ? I3 : I2) : (S[0] ? I1 : I0));
+endmodule
+*/
+// 000-I6
+//111-I7
+//001-I5
+
+/*
+module Mux8to1Nbit(F, S, I0, I1, I2, I3, I4, I5, I6, I7);
+	parameter N = 32;
+	input [N-1:0]I0, I1,I2, I3, I4, I5, I6, I7;
+	input [2:0]S;
+	output reg [N-1:0]F;
+	
+	always @(S )
+begin
+   case (S)
+      3'b000 : F = I0;
+      3'b001 : F = I1;
+      3'b010 : F = I2;
+      3'b011 : F = I3;
+      3'b100 : F = I4;
+      3'b101 : F = I5;
+      3'b110 : F = I6;
+      3'b111 : F = I7;
+     // default : F = 32'bx;
+   endcase
+end
+
+endmodule
+*/
+
+module Mux8to1Nbit( Out,
+
+  Sel,
+
+  In1,
+
+  In2,
+
+  In3,
+
+  In4,
+
+  In5,
+
+  In6,
+
+  In7,
+
+  In8
+
+  ); 
+
+  
+input [31:0]  In1,
+
+  In2,
+
+  In3,
+
+  In4,
+
+  In5,
+
+  In6,
+
+  In7,
+
+  In8; //The eight 32-bit input lines of the Mux 
+
+input [2:0] Sel; //The three bit selection line 
+
+
+output [31:0] Out; //The single 8-bit output line of the Mux 
+
+
+reg [31:0] Out; 
+
+
+//Check the state of the input lines 
+
+always @ (In1 or In2 or In3 or In4 or In5 or In6 or In7 or In8 or Sel) 
+
+begin 
+
+ case (Sel) 
+
+  3'b000 : Out = In1; 
+
+  3'b001 : Out = In2; 
+
+  3'b010 : Out = In3; 
+
+  3'b011 : Out = In4; 
+
+  3'b100 : Out = In5; 
+
+  3'b101 : Out = In6; 
+
+  3'b110 : Out = In7; 
+
+  3'b111 : Out = In8; 
+
+  default : Out = 8'bx; 
+
+  //If input is undefined then output is undefined 
+
+ endcase 
+
+end  
+
+endmodule
+//--------------------------------
+/*module Mux_2to1(o, i1,i2, s);
+   input [31:0] i1,i2;
+   input  s;
+   output reg [31:0] o;
+ 
+always @(s or i1 or i2)
+begin
+   case (s)
+      1'b0 : o = i1;
+      1'b1 : o = i2;
+      
+      default : o = 32'bx;
+   endcase
+end
+endmodule*/
+
+
+module Mux_2to1(F, I0, I1, S);
+	parameter N = 32;
+	input [N-1:0]I0, I1;
+	input S;
+	output [N-1:0]F;
+	assign F = S ? I0 : I1;
+	
+	//assign F = S[2] ? (S[1] ? (S[0] ? I7 : I6) : (S[0] ? I5 : I4)) : (S[1] ? (S[0] ? I3 : I2) : (S[0] ? I1 : I0));
+endmodule
+//---------------------------
+module ControlUnit(
+    input wire clock,
+    input wire reset,
+    input wire [31:0] inst,
+    input wire Z,
+    input wire N,
+    input wire C,
+    input wire V,
+    //output reg [31:0] inst_out,
+    output reg C0,
+    output reg RW,
+    output reg alu_m,
+    output reg [3:0] ALU_op,
+    output reg MRW,
+    output reg WB,
+    output reg PCsrc,
+    output reg [1:0] imm_sel
+);
+
+// RISC-V
+localparam OPCODE_R_TYPE = 7'b0110011;
+localparam OPCODE_I_TYPE = 7'b0010011;
+localparam OPCODE_S_TYPE = 7'b0100011;
+localparam OPCODE_B_TYPE = 7'b1100011;
+localparam OPCODE_U_TYPE = 7'b0110111;
+localparam OPCODE_J_TYPE = 7'b1101111;
+
+// ALU
+localparam ALU_ADD = 4'b0011; 
+
+
+wire [6:0] opcode = inst[6:0];
+wire [2:0] func3 = inst[14:12]; 
+wire [6:0] func7 = inst[31:25]; 
+
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        C0 <= 0;
+        RW <= 0;
+        alu_m <= 0;
+        ALU_op <= 0;
+        MRW <= 0;
+        WB <= 0;
+        PCsrc <= 0;
+        imm_sel <= 0;
+       // inst_out <= 32'b0;
+    end else begin
+        //inst_out <= inst;
+       
+        case (opcode)
+            OPCODE_R_TYPE: begin
+                // R
+                RW <= 1;
+                alu_m <= 0;
+                ALU_op <= ALU_ADD; 
+                MRW <= 0;
+                WB <= 1;
+                PCsrc <= 0;
+                imm_sel <= 2'b00;
+            end
+            OPCODE_I_TYPE: begin
+                // I
+                RW <= 1;
+                alu_m <= 1;
+                ALU_op <= ALU_ADD; 
+                MRW <= 0;
+                WB <= 1;
+                PCsrc <= 0;
+                imm_sel <= 2'b01; 
+            end
+            OPCODE_S_TYPE: begin
+                // S
+                RW <= 0;
+                alu_m <= 1;
+                ALU_op <= ALU_ADD; 
+                MRW <= 1; 
+                WB <= 0;
+                PCsrc <= 0;
+                imm_sel <= 2'b10; 
+            end
+            OPCODE_B_TYPE: begin
+                // B
+                RW <= 0;
+                alu_m <= 0;
+                ALU_op <= ALU_ADD; 
+                MRW <= 0;
+                WB <= 0;
+                PCsrc <= 1; 
+                imm_sel <= 2'b11; 
+                case (func3)
+                    3'b000: PCsrc <= Z;  
+                    3'b001: PCsrc <= ~Z; 
+                    3'b100: PCsrc <= N != V; 
+                    3'b101: PCsrc <= N == V; 
+                    3'b110: PCsrc <= C; 
+                    3'b111: PCsrc <= ~C; 
+        default: PCsrc <= 0; 
+                 endcase
+            end
+            OPCODE_U_TYPE: begin
+             // U
+            RW <= 1; 
+            alu_m <= 0; 
+            ALU_op <= ALU_ADD; 
+            MRW <= 0; 
+            WB <= 1; 
+            PCsrc <= 0; 
+            imm_sel <= 2'b11; 
+            end
+            OPCODE_J_TYPE: begin
+            // J
+            RW <= 1; 
+            alu_m <= 0; 
+            ALU_op <= ALU_ADD; 
+            MRW <= 0; 
+            WB <= 1; 
+            PCsrc <= 1; 
+            imm_sel <= 2'b11; 
+            end
+            default: begin
+                C0 <= 0;
+                RW <= 0;
+                alu_m <= 0;
+                ALU_op <= 0;
+                MRW <= 0;
+                WB <= 0;
+                PCsrc <= 0;
+                imm_sel <= 2'b00;
+            end
+        endcase
+    end
+end
+
+endmodule
+
+
